@@ -1,0 +1,13 @@
+version: 2.0
+
+model:
+  name: Traffic
+  framework: pytorch_fx
+evaluation:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
+  accuracy:                                          # optional. required if user doesn't provide eval_func in neural_compressor.Quantization.
+    metric:
+      topk: 1
+
+tuning:
+  accuracy_criterion:
+    relative:  0.01                                  # optional. default value is relative, other value is absolute. this example allows relative accuracy loss: 1%.
