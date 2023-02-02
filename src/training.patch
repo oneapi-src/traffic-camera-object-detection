@@ -1,0 +1,46 @@
+diff --git a/train.py b/train.py
+index 177e081..9b42fe9 100644
+--- a/train.py
++++ b/train.py
+@@ -239,6 +239,16 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
+     model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
+     model.names = names
+ 
++    # Ipex Optimizing Model
++    if opt.intel or opt.bf16:
++        import intel_extension_for_pytorch as ipex
++        model.model.to(memory_format=torch.channels_last)
++        if opt.bf16:
++            model, optimizer = ipex.optimize(model, optimizer=optimizer, dtype=torch.bfloat16)
++        else:
++            model, optimizer = ipex.optimize(model, optimizer=optimizer)
++        print("IPEX optimization enabled")
++
+     # Start training
+     t0 = time.time()
+     nb = len(train_loader)  # number of batches
+@@ -281,7 +291,11 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
+         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
+             callbacks.run('on_train_batch_start')
+             ni = i + nb * epoch  # number integrated batches (since train start)
+-            imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
++
++            if opt.bf16:
++                imgs = imgs.to(device, non_blocking=True).bfloat16() / 255  # uint8 to float16, 0-255 to 0.0-1.0
++            else:
++                imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+ 
+             # Warmup
+             if ni <= nw:
+@@ -472,6 +486,11 @@ def parse_opt(known=False):
+     parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval')
+     parser.add_argument('--artifact_alias', type=str, default='latest', help='Version of dataset artifact to use')
+ 
++    # Intel Ipex Optimization
++    parser.add_argument('--intel', '-i', type=int, default=0, help='To Enable Intel Optimization set to 1, default 0')
++    # Intel Ipex Optimization BF16
++    parser.add_argument('--bf16', action='store_true', help='Enable only on Intel® Fourth Gen Xeon, BF16')
++
+     return parser.parse_known_args()[0] if known else parser.parse_args()
+ 
+ 
