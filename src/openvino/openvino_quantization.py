@@ -17,6 +17,7 @@ import copy
 import os
 from pathlib import Path
 import argparse
+import logging
 import torch
 import torch.nn.functional as nnf
 from addict import Dict
@@ -185,6 +186,18 @@ if __name__ == "__main__":
     data_path = FLAGS.data_yaml
     batch_size = FLAGS.batchsize
 
+    logger = logging.getLogger('quantization')
+    formatter = logging.Formatter(
+                "[%(asctime)s][%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+                )
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.INFO)
+    logger.addHandler(stream_handler)
+    
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
     model_config = Dict(
         {
             "model_name": "TrafficOD_Onnx_Model",
@@ -207,12 +220,14 @@ if __name__ == "__main__":
     ]
 
     # Step 1: Load the model
+    logger.info('Step 1/9: Load the model')
 
     model = load_model(model_config=model_config)
 
     original_model = copy.deepcopy(model)
 
     # Step 2: Initialize the data loader
+    logger.info('Step 2/9: Initialize the data loader')
 
     data = check_yaml(data_path)
     data = check_dataset(data)  # check
@@ -234,37 +249,47 @@ if __name__ == "__main__":
 
     data_loader = Dataset(dataloader_l)
 
-    print("This will take time, Please wait")
     # Step 3 (Optional. Required for AccuracyAwareQuantization): Initialize the metric
+    logger.info('Step 3/9: Initialize the metric')
+
     metric = Accuracy(names)
 
     # Step 4: Initialize the engine for metric calculation and statistics collection
+    logger.info('Step 4/9: Initialize the engine for metric calculation and statistics collection')
     engine = IEEngine(config=engine_config, data_loader=data_loader, metric=metric)
 
     # Step 5: Create a pipeline of compression algorithms
+    logger.info('This will take time, please wait!')
+    logger.info('Step 5/9: Create a pipeline of compression algorithms')
     pipeline = create_pipeline(algo_config=algorithms, engine=engine)
 
     original_metric_results = pipeline.evaluate(original_model)
 
     # Step 6: Execute the pipeline
+    logger.info('This will take time, please wait!')
+    logger.info('Step 6/9: Execute the pipeline')
     compressed_model = pipeline.run(model=model)
 
     # Step 7 (Optional): Compress model weights quantized precision
     #                    in order to reduce the size of final .bin file
+    logger.info('Step 7/9: Compress model weights quantized precision in" \
+                    " order to reduce the size of final .bin file')
     compress_model_weights(model=compressed_model)
 
     # Step 8: Save the compressed model and get the path to the model
+    logger.info('Step 8/9: Save the compressed model and get the path to the model')
     compressed_model_paths = save_model(
         model=compressed_model, save_path=os.path.join(os.path.curdir, out_path)
     )
     compressed_model_xml = Path(compressed_model_paths[0]["model"])
-    print(f"The quantized model is stored in {compressed_model_xml}")
+    logger.info(f"The quantized model is stored in {compressed_model_xml}")
 
     # Step 9 (Optional): Evaluate the original and compressed model. Print the results
+    logger.info('Step 9 (Optional): Evaluate the original and compressed model. Print the results')
 
     quantized_metric_results = pipeline.evaluate(compressed_model)
     if quantized_metric_results:
-        print(f"MeanAP of the quantized model: {next(iter(quantized_metric_results.values())):.5f}")
+        logger.info(f"MeanAP of the quantized model: {next(iter(quantized_metric_results.values())):.5f}")
 
     if original_metric_results:
-        print(f"MeanAP of the original model:  {next(iter(original_metric_results.values())):.5f}")
+        logger.info(f"MeanAP of the original model:  {next(iter(original_metric_results.values())):.5f}")

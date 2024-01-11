@@ -23,6 +23,7 @@ from utils.metrics import ap_per_class
 from utils.general import (check_dataset, check_img_size, check_yaml, colorstr, non_max_suppression, scale_boxes,
                            xywh2xyxy)
 from models.yolo import Detect, Model
+import intel_extension_for_pytorch as ipex
 from models.experimental import attempt_download
 from val import process_batch
 
@@ -235,17 +236,9 @@ if __name__ == "__main__":
                         required=False,
                         default="yolov5s.pt",
                         help='Model Weights ".pt" format')
-    parser.add_argument('-i',
-                        '--intel',
-                        type=int,
-                        required=False,
-                        default=0,
-                        help='Run Intel optimization (Ipex) when 1....default is 0')
     parser.add_argument('-int8inc',
-                        type=int,
-                        required=False,
-                        default=0,
-                        help='Run INC quantization when 1....default is 0')
+                        action='store_true',
+                        help='Run INC quantization when present')
     parser.add_argument('-qw',
                         '--quant_weights',
                         type=str,
@@ -254,10 +247,8 @@ if __name__ == "__main__":
                         help='Quantization Model Weights folder containing ".pt" format model')
     parser.add_argument('-si',
                         '--save_image',
-                        type=int,
-                        required=False,
-                        default=0,
-                        help='Save images in the save image path specified if 1, default 0')
+                        action='store_true',
+                        help='Save images in the specified save_image_path when present.')
     parser.add_argument('-sip',
                         '--save_image_path',
                         type=str,
@@ -270,7 +261,6 @@ if __name__ == "__main__":
     batch_size = FLAGS.batchsize
     config_path = FLAGS.config
     data_yml = FLAGS.data_yaml
-    intel = FLAGS.intel
     int8inc = FLAGS.int8inc
     quant_weights = FLAGS.quant_weights
     save_image = FLAGS.save_image
@@ -320,13 +310,7 @@ if __name__ == "__main__":
 
     names = data['names']
 
-    if intel:
-        import intel_extension_for_pytorch as ipex
-
-        print('IPEX optimization enabled')
-        model = ipex.optimize(model, inplace=True)
-    elif int8inc:
-        import intel_extension_for_pytorch as ipex
+    if int8inc:
         from neural_compressor.utils.pytorch import load
 
         model = load(quant_weights, model)
@@ -334,7 +318,8 @@ if __name__ == "__main__":
         model = ipex.optimize(model, inplace=True)
         print('IPEX + INC optimization enabled')
     else:
-        print('Stock model')
+        print('IPEX optimization enabled')
+        model = ipex.optimize(model, inplace=True)
 
     model = torch.jit.trace(model, dummy_inp, check_trace=False, strict=False)
     model = torch.jit.freeze(model)

@@ -1,0 +1,22 @@
+name: traffic_detection_intel
+channels:
+  - intel
+  - conda-forge
+dependencies:
+  - python=3.9
+  - opencv=4.8.0
+  - intel-aikit-pytorch=2024.0
+  - neural-compressor=2.3.1
+  - torchvision=0.15.2
+  - seaborn=0.13.0
+  - tqdm=4.66.1
+  - tensorboard=2.15.1
+  - pillow=10.0.1
+  - ultralytics=8.0.227
+  - gitpython=3.1.40
+  - pip=23.3.1
+  - pip:
+    - opencv-python-headless==4.8.1.78
+    - thop==0.1.1-2209072238
+    - openvino-dev[pytorch,onnx]==2023.2.0
+    - onnx==1.14.1
